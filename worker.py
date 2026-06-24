@@ -25,6 +25,13 @@ SUBSCRIPTION_ID = "sub-procesador-postas"    # Tu suscripción de Pub/Sub
 def callback(message):
     try:
         data = json.loads(message.data.decode('utf-8'))
+        
+        # ESCUDO DE PROTECCIÓN: Si el mensaje contiene la estructura antigua, lo borramos de GCP
+        if 'infraestructura' in data or 'capacidad_maxima' not in data:
+            print("🧹 Detectado mensaje antiguo con estructura obsoleta. Descartando...")
+            message.ack()
+            return
+            
         posta = data['posta']
         region = data['region']
         
@@ -45,8 +52,7 @@ def callback(message):
         for med, stock in data['medicamentos'].items():
             STOCK_MEDICAMENTO.labels(posta=posta, region=region, medicamento=med).set(stock)
             
-        # Lógica de Alerta de Colapso (Gauges de control)
-        # Si la cola supera el 90% de la capacidad y hay pocos médicos
+        # Lógica de Alerta de Colapso
         if (data['pacientes_espera'] >= data['capacidad_maxima'] * 0.9) and (data['medicos_disponibles'] <= 1):
             ALERTA_COLAPSO.labels(posta=posta, region=region).set(1)
             print(f"🚨 ALERT: ¡{posta} en riesgo de colapso sanitario!")
@@ -54,8 +60,11 @@ def callback(message):
             ALERTA_COLAPSO.labels(posta=posta, region=region).set(0)
             
         message.ack()
+    except KeyError as ke:
+        print(f"⚠️ Error de clave detectado ({ke}). Descartando mensaje corrupto de la cola.")
+        message.ack() # Al darle ACK indicamos a GCP que ya no lo vuelva a enviar
     except Exception as e:
-        print(f"Error procesando mensaje: {e}")
+        print(f"Error inesperado procesando mensaje: {e}")
         message.nack()
 
 if __name__ == "__main__":
