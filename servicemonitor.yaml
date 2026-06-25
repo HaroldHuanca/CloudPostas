@@ -1,0 +1,13 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: postas-worker-monitor
+  labels:
+    release: prometheus  # 👈 CLAVE: Vincula este monitor con el Helm de Prometheus
+spec:
+  selector:
+    matchLabels:
+      app: postas-worker  # 👈 Debe coincidir con la etiqueta de tu Service
+  endpoints:
+  - port: metrics-port    # 👈 El nombre del puerto que lee las métricas
+    interval: 15s         # Raspado rápido cada 15 segundos para tus pruebas

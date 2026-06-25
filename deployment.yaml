@@ -24,11 +24,12 @@ kind: Service
 metadata:
   name: postas-worker-service
   labels:
-    app: postas-worker
+    app: postas-worker  # 👈 Asegúrate de que tenga esta etiqueta en metadata
 spec:
-  ports:
-  - port: 8000
-    targetPort: 8000
-    name: metrics
   selector:
     app: postas-worker
+  ports:
+    - name: metrics-port  # 👈 LE AGREGAMOS ESTE NOMBRE EXACTO
+      protocol: TCP
+      port: 8000
+      targetPort: 8000
