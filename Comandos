@@ -1,0 +1,24 @@
+############# COMANDOS DE APAGADO ############################
+# A. Matar todos los túneles activos de Grafana/Prometheus (Libera puertos locales)
+killall kubectl
+
+# B. Detener el clúster de Minikube (Congela y guarda tus Pods en disco)
+minikube stop
+
+# C. Apagar el demonio de Docker y sus sockets (Esto libera la memoria RAM al 100%)
+sudo systemctl stop docker.service docker.socket
+
+
+
+############# COMANDOS DE REINICIO ############################
+# 1. Despertar a Docker
+sudo systemctl start docker.service
+
+# 2. Iniciar Minikube (Esperar un par de minutos a que levante el clúster completo)
+minikube start --driver=docker --nodes=2
+
+# 3. Verificar que el cluster este estable
+kubectl get pods
+
+# 4. Reactivar el puente a Grafana
+kubectl port-forward svc/grafana 3000:80 & 
