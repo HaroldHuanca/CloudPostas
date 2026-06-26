@@ -1,24 +1,89 @@
-############# COMANDOS DE APAGADO ############################
-# A. Matar todos los túneles activos de Grafana/Prometheus (Libera puertos locales)
-killall kubectl
+#=========================  DETENER SCRIPTS Y TUNELES LOCALES ===============
+# Matamos los procesos en segundo plano(simuladores y port-forwards)
+pkill -f "simulador.py"
+pkill -f "port-forward"
 
-# B. Detener el clúster de Minikube (Congela y guarda tus Pods en disco)
+# Pausamos Minikube para que nuestra pc no consuma CPU, ni RAM
 minikube stop
 
-# C. Apagar el demonio de Docker y sus sockets (Esto libera la memoria RAM al 100%)
+# Detenemos por completo el docker del sistema
 sudo systemctl stop docker.service docker.socket
 
 
 
-############# COMANDOS DE REINICIO ############################
-# 1. Despertar a Docker
-sudo systemctl start docker.service
+#========================== RETOMAR TODO EL PIPELINE =======================
+#Iniciamos docker y minikube
+sudo systemctl start docker
+minikube start
 
-# 2. Iniciar Minikube (Esperar un par de minutos a que levante el clúster completo)
-minikube start --driver=docker --nodes=2
+#Activamos el registro local(se utiliza para que los nodos se hablen)
+minikube addons enable registry
 
-# 3. Verificar que el cluster este estable
-kubectl get pods
+#Abrimos los puertos, este es para grafana
+kubectl port-forward svc/prometheus-grafana 3000:80 &
 
-# 4. Reactivar el puente a Grafana
-kubectl port-forward svc/grafana 3000:80 & 
+#Este puerto es para el registro de imagenes, de aqui los pods copean la imagenes
+kubectl port-forward --namespace kube-system service/registry 5000:80 &
+
+#Comandos para encender el flujo de datos
+kubectl apply -f deployment.yaml
+kuvectl apply -f servicemonitor.yaml
+
+#Activar entorno virtual y simulador
+source env/bin/activate
+python simulador.py
+
+
+#========================== COPIAR TODO DESDE CEROOOOOOOOOOON =============================
+#Copiamos todo del repositorio
+cd ~
+git clone https://github.com/HaroldHuanca/CloudPostas.git
+cd ~/CloudPostas
+
+#Crear el cluster multi-nodo
+# 1. Asegurar que el motor de Docker esté encendido en Arch Linux
+sudo systemctl start docker
+
+# 2. Crear el clúster limpio con 2 Nodos (esto elimina residuos previos)
+minikube delete --all
+minikube start --nodes=2
+
+# 3. Activar el registro local dentro de Minikube
+minikube addons enable registry
+
+#Instalar promethues y grafana
+## 1. Agregar el repositorio oficial de Prometheus a Helm
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+
+# 2. Instalar el Stack completo (Prometheus, Grafana, Operators)
+helm install prometheus prometheus-community/kube-prometheus-stack
+
+#CONSTRUIMOS Y SUBIMOS LA IMAGEN DEL WORKER
+kubectl port-forward --namespace kube-system service/registry 5000:80 &
+
+# Compilar la imagen apuntando al registro interno
+docker build -t localhost:5000/msa-worker:1.0 .
+
+# Subirla al almacén interno de minikube
+docker push localhost:5000/msa-worker:1.0
+
+# 1. Desplegar los 3 Pods del Worker
+kubectl apply -f deployment.yaml
+
+# 2. Desplegar el ServiceMonitor para que Prometheus raspe las métricas
+kubectl apply -f servicemonitor.yaml
+
+#Iniciamos grafana
+kubectl port-forward svc/prometheus-grafana 3000:80 &
+
+# Configurar o activar tu entorno virtual de Python
+python3 -m venv env
+source env/bin/activate
+pip install -r requirements.txt  # Instalar librerías de GCP Pub/Sub si es necesario
+
+# Arrancar el simulador
+python simulador.py
+
+#Configuramos grafana:
+#http://prometheus-kube-prometheus-prometheus.default.svc.cluster.local:9090 lo colocamos en la fuente de datos

@@ -14,8 +14,8 @@ spec:
     spec:
       containers:
       - name: worker
-        image: msa-worker:1.0
-        imagePullPolicy: Never
+        image: localhost:5000/msa-worker:1.0
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8000
 ---
